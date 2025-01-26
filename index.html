@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mframe - Custom Photo Frames</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <script src="https://js.stripe.com/v3/"></script>
+    <style>
+        .glass {
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        .loading {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+        }
+        body {
+            background: linear-gradient(45deg, #4158D0, #C850C0, #FFCC70);
+            min-height: 100vh;
+        }
+    </style>
+</head>
+<body class="p-4">
+    <div class="loading" id="loadingSpinner">
+        <div class="animate-spin rounded-full h-32 w-32 border-b-4 border-white"></div>
+    </div>
+
+    <div class="max-w-6xl mx-auto">
+        <header class="glass rounded-xl p-6 mb-8">
+            <h1 class="text-4xl font-bold text-white text-center">Mframe</h1>
+            <p class="text-white text-center mt-2">Custom Photo Frames Made Just For You</p>
+        </header>
+
+        <div class="glass rounded-xl p-6 mb-8">
+            <form id="orderForm" class="space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="space-y-4">
+                        <h2 class="text-2xl font-semibold text-white">Frame Details</h2>
+                        
+                        <div>
+                            <label class="block text-white mb-2">Frame Size (inches)</label>
+                            <div class="flex gap-4">
+                                <input type="number" id="width" required placeholder="Width" class="w-full p-2 rounded bg-white/20 text-white placeholder-white/70">
+                                <input type="number" id="height" required placeholder="Height" class="w-full p-2 rounded bg-white/20 text-white placeholder-white/70">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-white mb-2">Frame Style</label>
+                            <select id="style" required class="w-full p-2 rounded bg-white/20 text-white">
+                                <option value="classic">Classic Wood</option>
+                                <option value="modern">Modern Metallic</option>
+                                <option value="minimalist">Minimalist</option>
+                                <option value="ornate">Ornate</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-white mb-2">Frame Color</label>
+                            <select id="color" required class="w-full p-2 rounded bg-white/20 text-white">
+                                <option value="black">Black</option>
+                                <option value="white">White</option>
+                                <option value="gold">Gold</option>
+                                <option value="silver">Silver</option>
+                                <option value="brown">Brown</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="space-y-4">
+                        <h2 class="text-2xl font-semibold text-white">Upload Photo</h2>
+                        <div class="border-2 border-dashed border-white/50 rounded-xl p-8 text-center">
+                            <input type="file" id="photo" accept="image/*" required class="hidden">
+                            <label for="photo" class="cursor-pointer">
+                                <i class="bi bi-cloud-upload text-4xl text-white"></i>
+                                <p class="text-white mt-2">Click to upload your photo</p>
+                            </label>
+                            <img id="preview" class="mt-4 mx-auto max-h-48 hidden">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="glass rounded-xl p-6">
+                    <h2 class="text-2xl font-semibold text-white mb-4">Contact Information</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <input type="text" required placeholder="Full Name" class="w-full p-2 rounded bg-white/20 text-white placeholder-white/70">
+                        <input type="email" required placeholder="Email" class="w-full p-2 rounded bg-white/20 text-white placeholder-white/70">
+                        <input type="tel" required placeholder="Phone" class="w-full p-2 rounded bg-white/20 text-white placeholder-white/70">
+                        <input type="text" required placeholder="Address" class="w-full p-2 rounded bg-white/20 text-white placeholder-white/70">
+                    </div>
+                </div>
+
+                <div class="text-right">
+                    <button type="submit" class="bg-white text-purple-600 px-8 py-3 rounded-xl font-semibold hover:bg-purple-100 transition-colors">
+                        Place Order
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById('orderForm');
+        const photoInput = document.getElementById('photo');
+        const preview = document.getElementById('preview');
+        const loadingSpinner = document.getElementById('loadingSpinner');
+
+        photoInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    preview.src = e.target.result;
+                    preview.classList.remove('hidden');
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            loadingSpinner.style.display = 'flex';
+
+            try {
+                const formData = new FormData();
+                formData.append('file', photoInput.files[0]);
+                formData.append('userId', 'user_' + Date.now());
+                formData.append('appSlug', 'mframe-app-' + Date.now());
+
+                // Upload photo
+                const uploadResponse = await fetch('https://r0c8kgwocscg8gsokogwwsw4.zetaverse.one/storage/upload', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer Gq6kgeHw86WTLzk78iA1QIABWS23'
+                    },
+                    body: formData
+                });
+
+                const uploadResult = await uploadResponse.json();
+
+                if (uploadResult.success) {
+                    // Create order in MongoDB
+                    const orderData = {
+                        appSlug: 'mframe-app-' + Date.now(),
+                        action: 'create',
+                        collection: 'orders',
+                        data: {
+                            width: document.getElementById('width').value,
+                            height: document.getElementById('height').value,
+                            style: document.getElementById('style').value,
+                            color: document.getElementById('color').value,
+                            photoUrl: uploadResult.url,
+                            status: 'pending',
+                            createdAt: new Date().toISOString()
+                        }
+                    };
+
+                    const orderResponse = await fetch('https://r0c8kgwocscg8gsokogwwsw4.zetaverse.one/mongodb', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': 'Bearer Gq6kgeHw86WTLzk78iA1QIABWS23',
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(orderData)
+                    });
+
+                    const orderResult = await orderResponse.json();
+
+                    if (orderResult.success) {
+                        alert('Order placed successfully! We will contact you for payment details.');
+                        form.reset();
+                        preview.classList.add('hidden');
+                    }
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('An error occurred. Please try again.');
+            } finally {
+                loadingSpinner.style.display = 'none';
+            }
+        });
+    </script>
+<script>document.body.addEventListener('wheel', e => { if (!e.ctrlKey) return; e.preventDefault(); return }, { passive: false })</script>
+	</body>
+</html>
